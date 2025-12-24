@@ -1,10 +1,13 @@
 const express = require('express');
 const bodyParser = require('body-parser');
+require('dotenv').config();
+console.log('[dotenv] OPENWEATHER_API_KEY after load:', process.env.OPENWEATHER_API_KEY ? `${process.env.OPENWEATHER_API_KEY.slice(0,4)}...${process.env.OPENWEATHER_API_KEY.slice(-4)}` : 'undefined');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const PDFDocument = require('pdfkit');
 const db = require('./database');
 const path = require('path');
+const https = require('https');
 
 const app = express();
 const PORT = 3000;
@@ -12,6 +15,27 @@ const SECRET_KEY = 'super_secret_key_change_me';
 
 app.use(bodyParser.json());
 app.use(express.static('public')); // Раздача фронтенда
+
+const httpsGetJson = (url) => {
+    return new Promise((resolve, reject) => {
+        const req = https.get(url, { headers: { 'User-Agent': 'Tripwise/1.0' } }, (resp) => {
+            let data = '';
+            resp.on('data', (chunk) => (data += chunk));
+            resp.on('end', () => {
+                try {
+                    const json = JSON.parse(data);
+                    if (resp.statusCode >= 400) {
+                        return reject(new Error(json && json.message ? json.message : `HTTP ${resp.statusCode}`));
+                    }
+                    resolve(json);
+                } catch (e) {
+                    reject(e);
+                }
+            });
+        });
+        req.on('error', reject);
+    });
+};
 
 // --- Middleware для проверки токена ---
 const authenticateToken = (req, res, next) => {
@@ -327,6 +351,111 @@ app.get('/api/trips/:id', authenticateToken, (req, res) => {
         db.all(`SELECT * FROM trip_items WHERE trip_id = ? ORDER BY day_number, time`, [tripId], (err, items) => {
             res.json({ ...trip, items });
         });
+    });
+});
+
+app.get('/api/trips/:id/weather', authenticateToken, (req, res) => {
+    const apiKey = process.env.OPENWEATHER_API_KEY;
+    console.log('[weather] OPENWEATHER_API_KEY loaded:', apiKey ? `${apiKey.slice(0,4)}...${apiKey.slice(-4)}` : 'undefined');
+    if (!apiKey) return res.status(500).json({ error: 'OPENWEATHER_API_KEY is not set' });
+
+    const tripId = req.params.id;
+    db.get(`SELECT title, start_date, end_date FROM trips WHERE id = ? AND user_id = ?`, [tripId, req.user.id], async (err, trip) => {
+        if (err) return res.status(500).json({ error: err.message });
+        if (!trip) return res.status(404).json({ error: 'Trip not found' });
+
+        const raw = String(trip.title || '').trim();
+        const cityBase = raw.split(/[-,()]/)[0].trim();
+        const city = (cityBase.replace(/[^\p{L}\p{N}\s\-']/gu, '').trim()) || cityBase;
+        if (!city) return res.status(400).json({ error: 'City not found in trip title' });
+
+        try {
+            const geoUrl = `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(city)}&limit=1&appid=${encodeURIComponent(apiKey)}`;
+            console.log('[weather] geoUrl:', geoUrl);
+            const geo = await httpsGetJson(geoUrl);
+            if (!Array.isArray(geo) || !geo.length) {
+                return res.status(404).json({ error: 'City not found' });
+            }
+            const { lat, lon, name, country } = geo[0];
+
+            const currentUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}&units=metric&lang=ru&appid=${encodeURIComponent(apiKey)}`;
+            const forecastUrl = `https://api.openweathermap.org/data/2.5/forecast?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}&units=metric&lang=ru&appid=${encodeURIComponent(apiKey)}`;
+
+            const [current, forecast] = await Promise.all([
+                httpsGetJson(currentUrl),
+                httpsGetJson(forecastUrl)
+            ]);
+
+            const startDate = trip.start_date ? String(trip.start_date) : null;
+            const endDate = trip.end_date ? String(trip.end_date) : startDate;
+
+            const byDay = new Map();
+            const list = (forecast && Array.isArray(forecast.list)) ? forecast.list : [];
+            for (const it of list) {
+                const dtTxt = it && it.dt_txt ? String(it.dt_txt) : '';
+                const day = dtTxt.slice(0, 10);
+                if (!day) continue;
+                if (startDate && day < startDate) continue;
+                if (endDate && day > endDate) continue;
+
+                const main = it && it.main ? it.main : {};
+                const weather0 = it && Array.isArray(it.weather) && it.weather[0] ? it.weather[0] : {};
+                const temp = typeof main.temp === 'number' ? main.temp : null;
+                if (temp === null) continue;
+
+                if (!byDay.has(day)) byDay.set(day, { temps: [], descriptions: {}, icons: {} });
+                const bucket = byDay.get(day);
+                bucket.temps.push(temp);
+
+                const desc = weather0.description ? String(weather0.description) : '';
+                const icon = weather0.icon ? String(weather0.icon) : '';
+                if (desc) bucket.descriptions[desc] = (bucket.descriptions[desc] || 0) + 1;
+                if (icon) bucket.icons[icon] = (bucket.icons[icon] || 0) + 1;
+            }
+
+            const pickMostFrequent = (obj) => {
+                let bestKey = '';
+                let bestVal = -1;
+                for (const [k, v] of Object.entries(obj || {})) {
+                    if (v > bestVal) {
+                        bestVal = v;
+                        bestKey = k;
+                    }
+                }
+                return bestKey;
+            };
+
+            const forecastDays = Array.from(byDay.entries())
+                .sort((a, b) => a[0].localeCompare(b[0]))
+                .map(([date, bucket]) => {
+                    const temps = bucket.temps || [];
+                    const min = temps.length ? Math.min(...temps) : null;
+                    const max = temps.length ? Math.max(...temps) : null;
+                    return {
+                        date,
+                        temp_min: min !== null ? Math.round(min) : null,
+                        temp_max: max !== null ? Math.round(max) : null,
+                        description: pickMostFrequent(bucket.descriptions),
+                        icon: pickMostFrequent(bucket.icons)
+                    };
+                });
+
+            const currentWeather0 = current && Array.isArray(current.weather) && current.weather[0] ? current.weather[0] : {};
+            res.json({
+                city: `${name || city}${country ? ', ' + country : ''}`,
+                current: {
+                    temp: current && current.main && typeof current.main.temp === 'number' ? Math.round(current.main.temp) : null,
+                    description: currentWeather0.description || '',
+                    icon: currentWeather0.icon || '',
+                    humidity: current && current.main ? current.main.humidity : null,
+                    wind_speed: current && current.wind ? current.wind.speed : null
+                },
+                forecast_days: forecastDays
+            });
+        } catch (e) {
+            console.error('[weather] OpenWeatherMap error:', e);
+            return res.status(500).json({ error: e.message || 'Weather service error' });
+        }
     });
 });
 

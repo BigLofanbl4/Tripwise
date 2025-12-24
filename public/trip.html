@@ -12,6 +12,8 @@
         <div id="trip-header" class="card" style="border-left: 5px solid var(--primary);">
             </div>
 
+        <div id="weather-card" class="card" style="display:none; border-left: 5px solid var(--primary);"></div>
+
         <div class="card" style="padding: 0; overflow: hidden;">
             <div class="flex" style="gap: 0;">
                 <button id="tab-route" class="secondary" style="border-radius: 0; width: 50%;" onclick="showTab('route')">Маршрут</button>
@@ -47,8 +49,8 @@
         <div id="tab-content-packing" class="tab-content" style="display:none;">
             <div class="card">
                 <h3>🧳 Что взять с собой</h3>
-                <div class="flex" style="flex-wrap: wrap;">
-                    <input type="text" id="packing-title" placeholder="Напр. Паспорт" style="flex: 1; min-width: 220px;">
+                <div class="flex" style="align-items: center; flex-wrap: wrap;">
+                    <input stype="text" id="packing-title" placeholder="Напр. Паспорт" style="flex: 1; min-width: 220px; margin-bottom: 0;">
                     <button style="width:auto;" onclick="addPackingItem()">Добавить</button>
                 </div>
             </div>
@@ -75,6 +77,66 @@
                 route.style.display = 'block';
                 loadStats();
             }
+        }
+
+        async function loadWeather() {
+            const card = document.getElementById('weather-card');
+            const res = await fetchAPI(`/trips/${tripId}/weather`);
+            if (!res.ok) {
+                let msg = 'Погода недоступна';
+                try {
+                    const err = await res.json();
+                    if (err && err.error) msg = `Погода недоступна: ${err.error}`;
+                } catch(e) {}
+                card.style.display = 'block';
+                card.innerHTML = `<div style="color: var(--text-secondary);">${msg}</div>`;
+                return;
+            }
+            const data = await res.json();
+            if (!data || !data.current) {
+                card.style.display = 'none';
+                return;
+            }
+
+            const icon = data.current.icon ? `https://openweathermap.org/img/wn/${data.current.icon}@2x.png` : '';
+            const forecast = Array.isArray(data.forecast_days) ? data.forecast_days : [];
+            const forecastHtml = forecast.length
+                ? `<div style="margin-top: 10px;">
+                        <div style="font-weight: 600; margin-bottom: 6px;">Прогноз на даты поездки</div>
+                        ${forecast.map(d => {
+                            const ic = d.icon ? `https://openweathermap.org/img/wn/${d.icon}.png` : '';
+                            const t = (d.temp_min !== null && d.temp_max !== null) ? `${d.temp_min}…${d.temp_max}°C` : '';
+                            return `<div class="flex" style="justify-content: space-between; gap: 10px; padding: 6px 0; border-bottom: 1px solid #eee;">
+                                        <div>${d.date}</div>
+                                        <div class="flex" style="width:auto; gap: 8px; align-items:center;">
+                                            ${ic ? `<img src="${ic}" alt="" width="28" height="28" style="display:block;"/>` : ''}
+                                            <div style="text-align:right;">
+                                                <div style="font-weight:600;">${t}</div>
+                                                <div style="color: var(--text-secondary); font-size: 0.9rem;">${d.description || ''}</div>
+                                            </div>
+                                        </div>
+                                    </div>`;
+                        }).join('')}
+                   </div>`
+                : '';
+
+            card.style.display = 'block';
+            card.innerHTML = `
+                <div class="flex" style="align-items:center; justify-content: space-between; gap: 12px;">
+                    <div>
+                        <h3 style="margin:0;">🌤️ Погода</h3>
+                        <div style="color: var(--text-secondary);">${data.city || ''}</div>
+                    </div>
+                    <div class="flex" style="width:auto; gap: 10px; align-items:center;">
+                        ${icon ? `<img src="${icon}" alt="" width="48" height="48" style="display:block;"/>` : ''}
+                        <div style="text-align:right;">
+                            <div style="font-size: 1.5rem; font-weight: 700;">${data.current.temp !== null ? data.current.temp : ''}°C</div>
+                            <div style="color: var(--text-secondary);">${data.current.description || ''}</div>
+                        </div>
+                    </div>
+                </div>
+                ${forecastHtml}
+            `;
         }
 
         async function loadStats() {
@@ -176,6 +238,8 @@
                     <button class="secondary">📄 Скачать PDF план</button>
                 </a>
             `;
+
+            loadWeather();
 
             const list = document.getElementById('items-list');
             list.innerHTML = '';

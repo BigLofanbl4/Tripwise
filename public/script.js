@@ -15,6 +15,9 @@ async function fetchAPI(endpoint, method = 'GET', body = null) {
     const options = { method, headers };
     if (body) options.body = JSON.stringify(body);
 
+    console.log(API_URL);
+    console.log(`[fetchAPI] ${method} ${API_URL}${endpoint}`, body ? `body=${JSON.stringify(body)}` : '');
+
     const res = await fetch(`${API_URL}${endpoint}`, options);
     if (res.status === 401 || res.status === 403) logout();
     return res;
