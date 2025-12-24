@@ -9,24 +9,24 @@
 <body>
     <div class="auth-container">
         <div class="card">
-            <h1 style="color: var(--primary);">✈️ Trip Planner</h1>
-            <p>Планируйте свои путешествия легко</p>
+            <h1 class="auth-title" style="color: var(--primary);">✈️ Trip Planner</h1>
+            <p class="auth-subtitle">Планируйте свои путешествия легко</p>
             
-            <div id="login-form">
+            <div id="login-form" class="auth-form">
                 <input type="email" id="login-email" placeholder="Email">
                 <input type="password" id="login-pass" placeholder="Пароль">
                 <button onclick="login()">Войти</button>
-                <p style="margin-top: 15px; font-size: 0.9rem;">
+                <p class="auth-toggle">
                     Нет аккаунта? <a href="#" onclick="toggleAuth()" style="color: var(--primary)">Создать</a>
                 </p>
             </div>
 
-            <div id="reg-form" style="display: none;">
+            <div id="reg-form" class="auth-form" style="display: none;">
                 <input type="text" id="reg-name" placeholder="Ваше имя">
                 <input type="email" id="reg-email" placeholder="Email">
                 <input type="password" id="reg-pass" placeholder="Пароль">
                 <button onclick="register()">Зарегистрироваться</button>
-                <p style="margin-top: 15px; font-size: 0.9rem;">
+                <p class="auth-toggle">
                     Уже есть аккаунт? <a href="#" onclick="toggleAuth()" style="color: var(--primary)">Войти</a>
                 </p>
             </div>

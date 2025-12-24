@@ -7,9 +7,9 @@
 </head>
 <body>
     <div class="container">
-        <header class="flex" style="margin-bottom: 30px;">
+        <header class="flex dashboard-header" style="margin-bottom: 30px;">
             <h2>🗺️ Мои путешествия</h2>
-            <div class="flex" style="width:auto; justify-content:flex-end;">
+            <div class="flex dashboard-controls" style="width:auto; justify-content:flex-end;">
                 <span id="admin-btn"></span>
                 <button class="secondary" style="width: auto;" onclick="logout()">Выйти</button>
             </div>
@@ -19,17 +19,17 @@
 
         <div class="card">
             <h3>Создать новую поездку</h3>
-            <div class="flex" style="align-items: flex-start; flex-wrap: wrap;">
-                <div style="flex: 2; min-width: 200px;">
+            <div class="flex dashboard-form" style="align-items: flex-start; flex-wrap: wrap;">
+                <div class="dashboard-form-title" style="flex: 2; min-width: 200px;">
                     <input type="text" id="trip-title" placeholder="Куда едем? (напр. Рим)">
                 </div>
-                <div style="flex: 1; min-width: 140px;">
+                <div class="dashboard-form-field" style="flex: 1; min-width: 140px;">
                     <input type="date" id="trip-start">
                 </div>
-                <div style="flex: 1; min-width: 140px;">
+                <div class="dashboard-form-field" style="flex: 1; min-width: 140px;">
                     <input type="date" id="trip-end">
                 </div>
-                <div style="flex: 1; min-width: 120px;">
+                <div class="dashboard-form-field" style="flex: 1; min-width: 120px;">
                     <input type="number" id="trip-budget" placeholder="Бюджет ₽">
                 </div>
             </div>
@@ -81,7 +81,7 @@
                         <p class="badge">📅 ${t.start_date} — ${t.end_date}</p>
                         <p style="font-size: 0.9rem">Бюджет: <b>${t.budget} ₽</b></p>
                     </div>
-                    <div class="flex" style="margin-top: 15px;">
+                    <div class="flex trip-card-actions" style="margin-top: 15px;">
                         <button onclick="window.location.href='/trip.html?id=${t.id}'">Открыть</button>
                         <button class="danger" style="width: auto;" onclick="deleteTrip(${t.id})">🗑️</button>
                     </div>

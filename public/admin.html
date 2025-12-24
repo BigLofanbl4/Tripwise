@@ -41,11 +41,11 @@
         <div id="tab-content-trips" class="tab-content" style="display:none;">
             <div class="card">
                 <h3>🧾 Модерация поездок</h3>
-                <div class="flex" style="align-items:center; flex-wrap: wrap;">
-                    <div style="flex:1; min-width: 220px;">
+                <div class="flex admin-cleanup-form" style="align-items:center; flex-wrap: wrap;">
+                    <div class="admin-cleanup-field" style="flex:1; min-width: 220px;">
                         <input style="margin-bottom: 0;" type="number" id="cleanup-days" placeholder="Удалить поездки старше дней (напр. 30)">
                     </div>
-                    <div style="flex:1; min-width: 220px;">
+                    <div class="admin-cleanup-field" style="flex:1; min-width: 220px;">
                         <input style="margin-bottom: 0;" type="text" id="cleanup-title" placeholder="Название содержит (напр. test/тест)">
                     </div>
                     <button style="width:auto;" onclick="cleanupTrips()">Очистить</button>
@@ -58,7 +58,7 @@
             <div class="card">
                 <h3>📣 Сообщение дня</h3>
                 <textarea id="motd-text" style="width:100%; min-height: 120px; padding: 12px 16px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 1rem; background: #f9fafb; box-sizing: border-box;"></textarea>
-                <div class="flex" style="justify-content:flex-end; margin-top: 12px;">
+                <div class="flex admin-motd-buttons" style="justify-content:flex-end; margin-top: 12px;">
                     <button class="danger" style="width:auto;" onclick="deleteMotd()">Удалить</button>
                     <button style="width:auto;" onclick="saveMotd()">Сохранить</button>
                 </div>

@@ -21,6 +21,7 @@ body {
     margin: 0;
     padding: 20px;
     line-height: 1.5;
+    font-size: 16px;
 }
 
 /* Центрирование контейнера */
@@ -28,6 +29,32 @@ body {
     max-width: 900px;
     margin: 0 auto;
     padding-bottom: 100px;
+}
+
+/* --- Адаптивность --- */
+@media (max-width: 768px) {
+    body { padding: 12px; font-size: 15px; }
+    .container { max-width: 100%; padding-bottom: 80px; }
+    .card { padding: 16px; margin-bottom: 16px; }
+    h1 { font-size: 1.5rem; }
+    h2 { font-size: 1.25rem; }
+    h3 { font-size: 1.1rem; }
+}
+
+@media (max-width: 480px) {
+    body { padding: 8px; font-size: 14px; }
+    .card { padding: 12px; border-radius: 8px; margin-bottom: 12px; }
+    h1 { font-size: 1.25rem; }
+    h2 { font-size: 1.1rem; }
+    h3 { font-size: 1rem; }
+}
+
+@media (max-width: 360px) {
+    body { padding: 4px; font-size: 13px; }
+    .card { padding: 8px; margin-bottom: 8px; }
+    h1 { font-size: 1.1rem; }
+    h2 { font-size: 1rem; }
+    h3 { font-size: 0.95rem; }
 }
 
 /* --- 2. Карточки --- */
@@ -61,6 +88,17 @@ input, select {
     box-sizing: border-box; /* Важно! */
 }
 
+/* Адаптивность для полей ввода */
+@media (max-width: 768px) {
+    input, select { padding: 10px 14px; margin-bottom: 12px; font-size: 0.95rem; }
+}
+@media (max-width: 480px) {
+    input, select { padding: 8px 12px; margin-bottom: 10px; font-size: 0.9rem; }
+}
+@media (max-width: 360px) {
+    input, select { padding: 6px 10px; margin-bottom: 8px; font-size: 0.85rem; }
+}
+
 input:focus {
     outline: none;
     border-color: var(--primary);
@@ -79,6 +117,18 @@ button {
     cursor: pointer;
     width: 100%;
     transition: background 0.2s, transform 0.1s;
+    box-sizing: border-box;
+}
+
+/* Адаптивность для кнопок */
+@media (max-width: 768px) {
+    button { padding: 10px 16px; font-size: 0.95rem; }
+}
+@media (max-width: 480px) {
+    button { padding: 8px 12px; font-size: 0.9rem; }
+}
+@media (max-width: 360px) {
+    button { padding: 6px 10px; font-size: 0.85rem; }
 }
 
 button:hover { background: var(--primary-hover); }
@@ -105,6 +155,103 @@ button.danger:hover { background: #fecaca; }
 }
 .flex-col { display: flex; flex-direction: column; }
 
+/* --- Мобильный layout --- */
+@media (max-width: 768px) {
+    /* Вертикальные группы вместо горизонтальных */
+    .flex {gap: 12px; }
+    .flex > * { width: 100%; }
+    
+    /* Кнопки вкладок вертикально */
+    .card .flex[style*="gap: 0"] {
+        flex-direction: row;
+        flex-wrap: wrap;
+    }
+    .card .flex[style*="gap: 0"] button {
+        width: 100%;
+        border-radius: 0 !important;
+    }
+    
+    /* Dashboard: форма создания поездки в столбик */
+    .dashboard .flex[style*="align-items: flex-end"] {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .dashboard .flex[style*="flex: 1"] {
+        min-width: auto;
+    }
+}
+
+@media (max-width: 480px) {
+    /* Экстремально вертикальный layout */
+    .flex { gap: 8px; }
+    
+    /* Вкладки вертикально */
+    .card .flex[style*="gap: 0"] {
+        flex-direction: column;
+    }
+    
+    /* Форма добавления маршрута — поля в столбик */
+    .card .flex[style*="flex-wrap: wrap"] {
+        flex-direction: column;
+    }
+    
+    /* Убрать минимальные ширины */
+    .flex input { min-width: auto !important; }
+    
+    /* Кнопки на всю ширину */
+    button[style*="width: auto"] {
+        width: 100% !important;
+        flex: 1;
+        /* margin-bottom: 12px; */
+    }
+    
+    /* Dashboard: поля в столбик */
+    .dashboard .flex[style*="align-items: flex-end"] {
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    /* Dashboard: заголовок и контролы */
+@media (max-width: 768px) {
+    .dashboard-header { flex-direction: column; gap: 12px; align-items: flex-start; }
+    .dashboard-controls { justify-content: center; gap: 8px;}
+    .dashboard-form { flex-direction: column; }
+    .dashboard-form-title, .dashboard-form-field { min-width: auto !important; }
+    .trip-card-actions { flex-direction: column; gap: 8px; }
+    
+    /* Trip: формы */
+    .trip-item-form { flex-direction: column; }
+    .trip-item-form input { min-width: auto !important; }
+    .packing-form { flex-direction: column; align-items: stretch; gap: 8px; }
+    .packing-form input { min-width: auto !important; margin-bottom: 0 !important; }
+    .packing-form button { width: 100%; }
+}
+    
+    /* Admin: форма очистки поездок в столбик */
+    .admin .flex[style*="align-items:center"] {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .admin .flex[style*="align-items:center"] > div {
+        min-width: auto !important;
+    }
+    .admin .flex[style*="justify-content:flex-end"] {
+        flex-direction: column;
+        gap: 8px;
+    }
+    .admin .flex[style*="justify-content:flex-end"] button {
+        width: 100% !important;
+    }
+    
+    /* Admin: уточненные классы */
+    @media (max-width: 768px) {
+        .admin-cleanup-form { flex-direction: column; align-items: stretch; gap: 8px; }
+        .admin-cleanup-field { min-width: auto !important; }
+        .admin-motd-buttons { flex-direction: column; gap: 8px; }
+        .admin-motd-buttons button { width: 100% !important; }
+    }
+}
+
 /* --- 5. Специальные стили --- */
 
 /* Экран входа */
@@ -114,10 +261,24 @@ button.danger:hover { background: #fecaca; }
     text-align: center;
 }
 
+/* Адаптивность для входа */
+@media (max-width: 480px) {
+    .auth-container { margin: 20px auto; padding: 0 8px; }
+}
+@media (max-width: 360px) {
+    .auth-container { margin: 10px auto; padding: 0 4px; }
+}
+
+/* Стили для форм входа */
+.auth-title { margin-bottom: 8px; }
+.auth-subtitle { margin-bottom: 24px; }
+.auth-form { margin-bottom: 16px; }
+.auth-toggle { margin-top: 15px; font-size: 0.9rem; }
+
 /* Список поездок (Сетка) */
 .trips-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
     gap: 20px;
 }
 
@@ -129,8 +290,19 @@ button.danger:hover { background: #fecaca; }
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    height: 100%;
+    /* height: 100%; */
     border-left: 5px solid var(--primary);
+}
+
+/* Адаптивность для карточек поездок */
+@media (max-width: 768px) {
+    .trip-card { padding: 16px; }
+}
+@media (max-width: 480px) {
+    .trip-card { padding: 12px; border-radius: 8px; }
+}
+@media (max-width: 360px) {
+    .trip-card { padding: 8px; }
 }
 
 .trip-card:hover { transform: translateY(-3px); }
@@ -153,6 +325,14 @@ button.danger:hover { background: #fecaca; }
 .timeline-item {
     position: relative;
     margin-bottom: 25px;
+}
+
+/* Адаптивность для таймлайна */
+@media (max-width: 480px) {
+    .timeline { padding-left: 20px; }
+    .timeline::before { left: 5px; }
+    .timeline-item { margin-bottom: 20px; }
+    .timeline-dot { left: -20px; width: 10px; height: 10px; border-width: 3px; }
 }
 
 .timeline-dot {
@@ -178,6 +358,11 @@ button.danger:hover { background: #fecaca; }
     margin-bottom: 8px;
 }
 
+/* Адаптивность для бейджей */
+@media (max-width: 480px) {
+    .badge { padding: 3px 6px; font-size: 0.75rem; }
+}
+
 .packing-row {
     display: flex;
     align-items: flex-start;
@@ -185,6 +370,11 @@ button.danger:hover { background: #fecaca; }
     gap: 12px;
     padding: 12px 0;
     border-bottom: 1px solid #eee;
+}
+
+/* Адаптивность для packing */
+@media (max-width: 480px) {
+    .packing-row { gap: 8px; padding: 10px 0; }
 }
 
 .packing-label {
@@ -210,6 +400,12 @@ button.danger:hover { background: #fecaca; }
     place-content: center;
     cursor: pointer;
     transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* Адаптивность для чекбоксов */
+@media (max-width: 480px) {
+    .packing-checkbox { width: 18px; height: 18px; }
+    .packing-checkbox:checked::after { width: 5px; height: 8px; }
 }
 
 .packing-checkbox:hover {
@@ -242,6 +438,11 @@ button.danger:hover { background: #fecaca; }
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+/* Адаптивность для заголовков packing */
+@media (max-width: 480px) {
+    .packing-title { font-size: 0.9rem; }
 }
 
 .packing-title.is-done {
