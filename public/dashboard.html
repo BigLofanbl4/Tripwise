@@ -9,8 +9,13 @@
     <div class="container">
         <header class="flex" style="margin-bottom: 30px;">
             <h2>🗺️ Мои путешествия</h2>
-            <button class="secondary" style="width: auto;" onclick="logout()">Выйти</button>
+            <div class="flex" style="width:auto; justify-content:flex-end;">
+                <span id="admin-btn"></span>
+                <button class="secondary" style="width: auto;" onclick="logout()">Выйти</button>
+            </div>
         </header>
+
+        <div id="motd" class="card" style="display:none; border-left: 5px solid var(--primary);"></div>
 
         <div class="card">
             <h3>Создать новую поездку</h3>
@@ -36,6 +41,28 @@
 
     <script src="script.js"></script>
     <script>
+        async function loadMe() {
+            const res = await fetchAPI('/me');
+            if (!res.ok) return;
+            const me = await res.json();
+            if (me && me.is_admin) {
+                document.getElementById('admin-btn').innerHTML = `
+                    <button class="secondary" style="width:auto;" onclick="window.location.href='/admin.html'">Админ</button>
+                `;
+            }
+        }
+
+        async function loadMotd() {
+            const res = await fetchAPI('/motd');
+            if (!res.ok) return;
+            const data = await res.json();
+            if (data && data.message) {
+                const el = document.getElementById('motd');
+                el.style.display = 'block';
+                el.innerHTML = `<h3 style="margin-bottom: 8px;">📣 Сообщение</h3><div>${data.message}</div>`;
+            }
+        }
+
         // Логика та же, меняем только HTML внутри рендера
         async function loadTrips() {
             const res = await fetchAPI('/trips');
@@ -82,6 +109,8 @@
                 loadTrips();
             }
         }
+        loadMe();
+        loadMotd();
         loadTrips();
     </script>
 </body>

@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Админ панель</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header class="flex" style="margin-bottom: 30px;">
+            <h2>🛠️ Админ панель</h2>
+            <div class="flex" style="width:auto; justify-content:flex-end;">
+                <button class="secondary" style="width:auto;" onclick="window.location.href='/dashboard.html'">← Назад</button>
+                <button class="secondary" style="width:auto;" onclick="logout()">Выйти</button>
+            </div>
+        </header>
+
+        <div class="card" style="padding: 0; overflow: hidden;">
+            <div class="flex" style="gap: 0;">
+                <button id="tab-dashboard" class="secondary" style="border-radius: 0; width: 25%;" onclick="showTab('dashboard')">Dashboard</button>
+                <button id="tab-users" class="secondary" style="border-radius: 0; width: 25%;" onclick="showTab('users')">Пользователи</button>
+                <button id="tab-trips" class="secondary" style="border-radius: 0; width: 25%;" onclick="showTab('trips')">Поездки</button>
+                <button id="tab-motd" class="secondary" style="border-radius: 0; width: 25%;" onclick="showTab('motd')">Уведомления</button>
+            </div>
+        </div>
+
+        <div id="tab-content-dashboard" class="tab-content">
+            <div class="card">
+                <h3>📊 Общая статистика</h3>
+                <div id="stats"></div>
+            </div>
+        </div>
+
+        <div id="tab-content-users" class="tab-content" style="display:none;">
+            <div class="card">
+                <h3>👥 Управление пользователями</h3>
+                <div id="users-list"></div>
+            </div>
+        </div>
+
+        <div id="tab-content-trips" class="tab-content" style="display:none;">
+            <div class="card">
+                <h3>🧾 Модерация поездок</h3>
+                <div class="flex" style="align-items:center; flex-wrap: wrap;">
+                    <div style="flex:1; min-width: 220px;">
+                        <input style="margin-bottom: 0;" type="number" id="cleanup-days" placeholder="Удалить поездки старше дней (напр. 30)">
+                    </div>
+                    <div style="flex:1; min-width: 220px;">
+                        <input style="margin-bottom: 0;" type="text" id="cleanup-title" placeholder="Название содержит (напр. test/тест)">
+                    </div>
+                    <button style="width:auto;" onclick="cleanupTrips()">Очистить</button>
+                </div>
+                <div id="trips-list"></div>
+            </div>
+        </div>
+
+        <div id="tab-content-motd" class="tab-content" style="display:none;">
+            <div class="card">
+                <h3>📣 Сообщение дня</h3>
+                <textarea id="motd-text" style="width:100%; min-height: 120px; padding: 12px 16px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 1rem; background: #f9fafb; box-sizing: border-box;"></textarea>
+                <div class="flex" style="justify-content:flex-end; margin-top: 12px;">
+                    <button class="danger" style="width:auto;" onclick="deleteMotd()">Удалить</button>
+                    <button style="width:auto;" onclick="saveMotd()">Сохранить</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+    <script>
+        async function ensureAdmin() {
+            const res = await fetchAPI('/me');
+            if (!res.ok) {
+                window.location.href = '/index.html';
+                return null;
+            }
+            const me = await res.json();
+            if (!me.is_admin) {
+                alert('Доступ только для администратора');
+                window.location.href = '/dashboard.html';
+                return null;
+            }
+            return me;
+        }
+
+        function showTab(tab) {
+            const map = {
+                dashboard: 'tab-content-dashboard',
+                users: 'tab-content-users',
+                trips: 'tab-content-trips',
+                motd: 'tab-content-motd'
+            };
+            Object.values(map).forEach(id => {
+                document.getElementById(id).style.display = 'none';
+            });
+            document.getElementById(map[tab]).style.display = 'block';
+
+            if (tab === 'dashboard') loadStats();
+            if (tab === 'users') loadUsers();
+            if (tab === 'trips') loadTrips();
+            if (tab === 'motd') loadMotd();
+        }
+
+        async function loadStats() {
+            const res = await fetchAPI('/admin/stats');
+            if (!res.ok) return;
+            const s = await res.json();
+            document.getElementById('stats').innerHTML = `
+                <div class="flex" style="flex-wrap: wrap; align-items: flex-start;">
+                    <div class="card" style="margin:0; flex:1; min-width: 220px; box-shadow:none; border:1px solid #eee;">
+                        <div style="color: var(--text-secondary);">Всего пользователей</div>
+                        <div style="font-size: 1.8rem; font-weight: 700;">${s.total_users}</div>
+                    </div>
+                    <div class="card" style="margin:0; flex:1; min-width: 220px; box-shadow:none; border:1px solid #eee;">
+                        <div style="color: var(--text-secondary);">Всего поездок</div>
+                        <div style="font-size: 1.8rem; font-weight: 700;">${s.total_trips}</div>
+                    </div>
+                    <div class="card" style="margin:0; flex:1; min-width: 220px; box-shadow:none; border:1px solid #eee;">
+                        <div style="color: var(--text-secondary);">Всего точек</div>
+                        <div style="font-size: 1.8rem; font-weight: 700;">${s.total_items}</div>
+                    </div>
+                    <div class="card" style="margin:0; flex:1; min-width: 220px; box-shadow:none; border:1px solid #eee;">
+                        <div style="color: var(--text-secondary);">Сумма бюджетов</div>
+                        <div style="font-size: 1.8rem; font-weight: 700;">${s.sum_budgets} ₽</div>
+                    </div>
+                    <div class="card" style="margin:0; flex:1; min-width: 220px; box-shadow:none; border:1px solid #eee;">
+                        <div style="color: var(--text-secondary);">Поездок за 7 дней</div>
+                        <div style="font-size: 1.8rem; font-weight: 700;">${s.trips_last_7_days}</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        async function loadUsers() {
+            const res = await fetchAPI('/admin/users');
+            if (!res.ok) {
+                let msg = 'Не удалось загрузить пользователей';
+                try {
+                    const err = await res.json();
+                    if (err && err.error) msg = err.error;
+                } catch(e) {}
+                alert(msg);
+                return;
+            }
+            const users = await res.json();
+            const container = document.getElementById('users-list');
+
+            if (!users.length) {
+                container.innerHTML = '<p>Пользователей нет.</p>';
+                return;
+            }
+
+            container.innerHTML = users.map(u => `
+                <div class="flex" style="align-items:flex-start; justify-content:space-between; padding: 12px 0; border-bottom: 1px solid #eee; gap: 12px;">
+                    <div style="flex:1; min-width: 0;">
+                        <div style="font-weight: 600;">${u.name} ${u.is_admin ? '<span class="badge" style="margin-left:8px;">ADMIN</span>' : ''} ${u.is_banned ? '<span class="badge" style="margin-left:8px; background:#fee2e2; color:#b91c1c;">BANNED</span>' : ''}</div>
+                        <div style="color: var(--text-secondary);">${u.email}</div>
+                        <div style="color: var(--text-secondary); font-size: 0.9rem;">ID: ${u.id} • Регистрация: ${u.created_at || '-'}</div>
+                    </div>
+                    <div class="flex" style="width:auto; justify-content:flex-end; gap: 10px;">
+                        <button class="secondary" style="width:auto;" onclick="toggleBan(${u.id}, ${u.is_banned ? 'false' : 'true'})">
+                            ${u.is_banned ? 'Разбанить' : 'Забанить'}
+                        </button>
+                        <button class="secondary" style="width:auto;" onclick="toggleAdmin(${u.id}, ${u.is_admin ? 'false' : 'true'})">
+                            ${u.is_admin ? 'Снять админа' : 'Сделать админом'}
+                        </button>
+                        <button class="danger" style="width:auto;" onclick="deleteUser(${u.id})">Удалить</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function toggleAdmin(userId, makeAdmin) {
+            const ok = confirm(makeAdmin ? 'Назначить администратором?' : 'Снять права администратора?');
+            if (!ok) return;
+            const res = await fetchAPI(`/admin/users/${userId}`, 'PATCH', { is_admin: !!makeAdmin });
+            if (!res.ok) {
+                let msg = 'Не удалось обновить';
+                try {
+                    const err = await res.json();
+                    if (err && err.error) msg = err.error;
+                } catch(e) {}
+                alert(msg);
+                return;
+            }
+            loadUsers();
+        }
+
+        async function toggleBan(userId, ban) {
+            const ok = confirm(ban ? 'Забанить пользователя (запретить вход)?' : 'Разбанить пользователя?');
+            if (!ok) return;
+            const res = await fetchAPI(`/admin/users/${userId}`, 'PATCH', { is_banned: !!ban });
+            if (!res.ok) {
+                let msg = 'Не удалось обновить';
+                try {
+                    const err = await res.json();
+                    if (err && err.error) msg = err.error;
+                } catch(e) {}
+                alert(msg);
+                return;
+            }
+            loadUsers();
+        }
+
+        async function deleteUser(userId) {
+            const ok = confirm('Точно удалить пользователя?');
+            if (!ok) return;
+            const res = await fetchAPI(`/admin/users/${userId}`, 'DELETE');
+            if (!res.ok) {
+                let msg = 'Не удалось удалить';
+                try {
+                    const err = await res.json();
+                    if (err && err.error) msg = err.error;
+                } catch(e) {}
+                alert(msg);
+                return;
+            }
+            loadUsers();
+        }
+
+        async function loadTrips() {
+            const res = await fetchAPI('/admin/trips');
+            if (!res.ok) {
+                let msg = 'Не удалось загрузить поездки';
+                try {
+                    const err = await res.json();
+                    if (err && err.error) msg = err.error;
+                } catch(e) {}
+                document.getElementById('trips-list').innerHTML = `<p>${msg}</p>`;
+                return;
+            }
+            const trips = await res.json();
+            const container = document.getElementById('trips-list');
+            if (!trips.length) {
+                container.innerHTML = '<p>Поездок нет.</p>';
+                return;
+            }
+            container.innerHTML = trips.map(t => `
+                <div class="flex" style="align-items:flex-start; justify-content:space-between; padding: 12px 0; border-bottom: 1px solid #eee; gap: 12px;">
+                    <div style="flex:1; min-width:0;">
+                        <div style="font-weight: 600;">${t.title}</div>
+                        <div style="color: var(--text-secondary);">${t.start_date || '-'} — ${t.end_date || '-'}</div>
+                        <div style="color: var(--text-secondary); font-size: 0.9rem;">Trip ID: ${t.id} • User: ${t.user_email} • Created: ${t.created_at || '-'}</div>
+                    </div>
+                    <div style="text-align:right; min-width: 160px;">
+                        <div style="font-weight:700;">${t.budget || 0} ₽</div>
+                        <button class="danger" style="width:auto; margin-top: 8px;" onclick="deleteTrip(${t.id})">Удалить</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function deleteTrip(tripId) {
+            if (!confirm('Удалить эту поездку?')) return;
+            const res = await fetchAPI(`/admin/trips/${tripId}`, 'DELETE');
+            if (!res.ok) {
+                let msg = 'Не удалось удалить';
+                try {
+                    const err = await res.json();
+                    if (err && err.error) msg = err.error;
+                } catch(e) {}
+                alert(msg);
+                return;
+            }
+            loadTrips();
+        }
+
+        async function cleanupTrips() {
+            const older = document.getElementById('cleanup-days').value;
+            const title = document.getElementById('cleanup-title').value;
+            const res = await fetchAPI('/admin/trips/cleanup', 'POST', {
+                older_than_days: older ? Number(older) : 0,
+                title_contains: title || ''
+            });
+            if (!res.ok) {
+                let msg = 'Не удалось очистить';
+                try {
+                    const err = await res.json();
+                    if (err && err.error) msg = err.error;
+                } catch(e) {}
+                alert(msg);
+                return;
+            }
+            const data = await res.json();
+            alert(`Удалено поездок: ${data.deleted}`);
+            loadTrips();
+        }
+
+        async function loadMotd() {
+            const res = await fetchAPI('/motd');
+            if (!res.ok) {
+                document.getElementById('motd-text').value = '';
+                return;
+            }
+            const data = await res.json();
+            document.getElementById('motd-text').value = (data && data.message) ? data.message : '';
+        }
+
+        async function saveMotd() {
+            const message = document.getElementById('motd-text').value;
+            const res = await fetchAPI('/admin/motd', 'PUT', { message });
+            if (!res.ok) {
+                let msg = 'Не удалось сохранить';
+                try {
+                    const err = await res.json();
+                    if (err && err.error) msg = err.error;
+                } catch(e) {}
+                alert(msg);
+                return;
+            }
+            alert('Сохранено');
+        }
+
+        async function deleteMotd() {
+            if (!confirm('Удалить сообщение дня?')) return;
+            const res = await fetchAPI('/admin/motd', 'DELETE');
+            if (!res.ok) {
+                let msg = 'Не удалось удалить';
+                try {
+                    const err = await res.json();
+                    if (err && err.error) msg = err.error;
+                } catch(e) {}
+                alert(msg);
+                return;
+            }
+            document.getElementById('motd-text').value = '';
+            alert('Удалено');
+        }
+
+        (async () => {
+            const me = await ensureAdmin();
+            if (!me) return;
+            showTab('dashboard');
+        })();
+    </script>
+</body>
+</html>

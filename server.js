@@ -21,7 +21,20 @@ const authenticateToken = (req, res, next) => {
 
     jwt.verify(token, SECRET_KEY, (err, user) => {
         if (err) return res.sendStatus(403);
-        req.user = user;
+        db.get(`SELECT COALESCE(is_banned, 0) as is_banned FROM users WHERE id = ?`, [user.id], (err, row) => {
+            if (err) return res.status(500).json({ error: err.message });
+            if (!row) return res.sendStatus(403);
+            if (row.is_banned) return res.status(403).json({ error: 'User is banned' });
+            req.user = user;
+            next();
+        });
+    });
+};
+
+const requireAdmin = (req, res, next) => {
+    db.get(`SELECT is_admin FROM users WHERE id = ?`, [req.user.id], (err, row) => {
+        if (err) return res.status(500).json({ error: err.message });
+        if (!row || !row.is_admin) return res.status(403).json({ error: 'Admin only' });
         next();
     });
 };
@@ -36,7 +49,7 @@ app.post('/api/register', (req, res) => {
     }
     const hashedPassword = bcrypt.hashSync(password, 8);
     
-    db.run(`INSERT INTO users (email, password, name) VALUES (?, ?, ?)`, 
+    db.run(`INSERT INTO users (email, password, name, created_at) VALUES (?, ?, ?, datetime('now'))`, 
         [email, hashedPassword, name], 
         function(err) {
             if (err) {
@@ -46,8 +59,20 @@ app.post('/api/register', (req, res) => {
                 }
                 return res.status(500).json({ error: err.message });
             }
-            const token = jwt.sign({ id: this.lastID, email }, SECRET_KEY);
-            res.json({ token, user: { id: this.lastID, name, email } });
+
+            const newUserId = this.lastID;
+
+            db.get(`SELECT COUNT(*) as cnt FROM users WHERE is_admin = 1`, (err, row) => {
+                if (err) {
+                    console.error('Register admin bootstrap error:', err.message);
+                }
+                const hasAnyAdmin = row && row.cnt > 0;
+                if (!hasAnyAdmin) {
+                    db.run(`UPDATE users SET is_admin = 1 WHERE id = ?`, [newUserId]);
+                }
+                const token = jwt.sign({ id: newUserId, email }, SECRET_KEY);
+                res.json({ token, user: { id: newUserId, name, email } });
+            });
         }
     );
 });
@@ -60,11 +85,214 @@ app.post('/api/login', (req, res) => {
             console.error('Login error:', err.message);
             return res.status(500).json({ error: err.message });
         }
+        if (user && user.is_banned) {
+            return res.status(403).json({ error: 'User is banned' });
+        }
         if (!user || !bcrypt.compareSync(password, user.password)) {
             return res.status(401).json({ error: "Invalid credentials" });
         }
-        const token = jwt.sign({ id: user.id, email: user.email }, SECRET_KEY);
-        res.json({ token, user: { id: user.id, name: user.name, email: user.email } });
+
+        db.get(`SELECT COUNT(*) as cnt FROM users WHERE is_admin = 1`, (err, row) => {
+            if (err) {
+                console.error('Login admin bootstrap error:', err.message);
+            }
+            const hasAnyAdmin = row && row.cnt > 0;
+            if (!hasAnyAdmin) {
+                db.run(`UPDATE users SET is_admin = 1 WHERE id = ?`, [user.id]);
+            }
+            const token = jwt.sign({ id: user.id, email: user.email }, SECRET_KEY);
+            res.json({ token, user: { id: user.id, name: user.name, email: user.email } });
+        });
+    });
+});
+
+app.get('/api/me', authenticateToken, (req, res) => {
+    db.get(`SELECT id, name, email, COALESCE(is_admin, 0) as is_admin, COALESCE(is_banned, 0) as is_banned, created_at FROM users WHERE id = ?`, [req.user.id], (err, user) => {
+        if (err) return res.status(500).json({ error: err.message });
+        if (!user) return res.status(404).json({ error: 'User not found' });
+        res.json(user);
+    });
+});
+
+app.get('/api/motd', authenticateToken, (req, res) => {
+    db.get(`SELECT value FROM app_settings WHERE key = 'motd'`, (err, row) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ message: (row && row.value) ? row.value : '' });
+    });
+});
+
+// --- API: Админ панель ---
+
+app.get('/api/admin/users', authenticateToken, requireAdmin, (req, res) => {
+    db.all(`SELECT id, name, email, COALESCE(is_admin, 0) as is_admin, COALESCE(is_banned, 0) as is_banned, created_at FROM users ORDER BY id`, (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(rows);
+    });
+});
+
+app.patch('/api/admin/users/:id', authenticateToken, requireAdmin, (req, res) => {
+    const targetUserId = Number(req.params.id);
+    const patch = req.body || {};
+    const hasIsAdmin = Object.prototype.hasOwnProperty.call(patch, 'is_admin');
+    const hasIsBanned = Object.prototype.hasOwnProperty.call(patch, 'is_banned');
+    const isAdmin = hasIsAdmin ? (patch.is_admin ? 1 : 0) : null;
+    const isBanned = hasIsBanned ? (patch.is_banned ? 1 : 0) : null;
+    if (!targetUserId) return res.status(400).json({ error: 'Invalid user id' });
+
+    if (targetUserId === req.user.id && isBanned === 1) {
+        return res.status(400).json({ error: 'Cannot ban yourself' });
+    }
+
+    const applyUpdate = () => {
+        const set = [];
+        const values = [];
+        if (isAdmin !== null) {
+            set.push('is_admin = ?');
+            values.push(isAdmin);
+        }
+        if (isBanned !== null) {
+            set.push('is_banned = ?');
+            values.push(isBanned);
+        }
+        if (!set.length) return res.status(400).json({ error: 'Nothing to update' });
+
+        values.push(targetUserId);
+        db.run(`UPDATE users SET ${set.join(', ')} WHERE id = ?`, values, function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json({ message: 'Updated' });
+        });
+    };
+
+    if (isAdmin === 0) {
+        db.get(`SELECT COUNT(*) as cnt FROM users WHERE is_admin = 1`, (err, row) => {
+            if (err) return res.status(500).json({ error: err.message });
+            if ((row && row.cnt) <= 1) {
+                return res.status(400).json({ error: 'Cannot remove the last admin' });
+            }
+            applyUpdate();
+        });
+        return;
+    }
+
+    applyUpdate();
+});
+
+app.delete('/api/admin/users/:id', authenticateToken, requireAdmin, (req, res) => {
+    const targetUserId = Number(req.params.id);
+    if (!targetUserId) return res.status(400).json({ error: 'Invalid user id' });
+    if (targetUserId === req.user.id) return res.status(400).json({ error: 'Cannot delete yourself' });
+
+    db.get(`SELECT COALESCE(is_admin, 0) as is_admin FROM users WHERE id = ?`, [targetUserId], (err, target) => {
+        if (err) return res.status(500).json({ error: err.message });
+        if (!target) return res.status(404).json({ error: 'User not found' });
+
+        const doDelete = () => {
+            db.run(`DELETE FROM trips WHERE user_id = ?`, [targetUserId], function(err) {
+                if (err) return res.status(500).json({ error: err.message });
+                db.run(`DELETE FROM users WHERE id = ?`, [targetUserId], function(err) {
+                    if (err) return res.status(500).json({ error: err.message });
+                    res.json({ message: 'Deleted' });
+                });
+            });
+        };
+
+        if (target.is_admin) {
+            db.get(`SELECT COUNT(*) as cnt FROM users WHERE is_admin = 1`, (err, row) => {
+                if (err) return res.status(500).json({ error: err.message });
+                if ((row && row.cnt) <= 1) return res.status(400).json({ error: 'Cannot delete the last admin' });
+                doDelete();
+            });
+            return;
+        }
+
+        doDelete();
+    });
+});
+
+app.get('/api/admin/stats', authenticateToken, requireAdmin, (req, res) => {
+    db.get(`SELECT COUNT(*) as total_users FROM users`, (err, u) => {
+        if (err) return res.status(500).json({ error: err.message });
+        db.get(`SELECT COUNT(*) as total_trips, COALESCE(SUM(budget), 0) as sum_budgets FROM trips`, (err, t) => {
+            if (err) return res.status(500).json({ error: err.message });
+            db.get(`SELECT COUNT(*) as total_items FROM trip_items`, (err, i) => {
+                if (err) return res.status(500).json({ error: err.message });
+                db.get(`SELECT COUNT(*) as trips_last_7_days FROM trips WHERE created_at >= datetime('now', '-7 days')`, (err, a) => {
+                    if (err) return res.status(500).json({ error: err.message });
+                    res.json({
+                        total_users: u.total_users,
+                        total_trips: t.total_trips,
+                        total_items: i.total_items,
+                        sum_budgets: t.sum_budgets,
+                        trips_last_7_days: a.trips_last_7_days
+                    });
+                });
+            });
+        });
+    });
+});
+
+app.get('/api/admin/trips', authenticateToken, requireAdmin, (req, res) => {
+    db.all(
+        `SELECT tr.id, tr.title, tr.start_date, tr.end_date, tr.budget, tr.created_at, tr.user_id, u.email as user_email
+         FROM trips tr
+         JOIN users u ON tr.user_id = u.id
+         ORDER BY tr.id DESC`,
+        (err, rows) => {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json(rows);
+        }
+    );
+});
+
+app.delete('/api/admin/trips/:id', authenticateToken, requireAdmin, (req, res) => {
+    const tripId = Number(req.params.id);
+    if (!tripId) return res.status(400).json({ error: 'Invalid trip id' });
+    db.run(`DELETE FROM trips WHERE id = ?`, [tripId], function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ message: 'Deleted' });
+    });
+});
+
+app.post('/api/admin/trips/cleanup', authenticateToken, requireAdmin, (req, res) => {
+    const body = req.body || {};
+    const olderThanDays = Number(body.older_than_days || 0);
+    const titleContains = (body.title_contains || '').toString().trim().toLowerCase();
+
+    const where = [];
+    const params = [];
+    if (olderThanDays > 0) {
+        where.push(`created_at < datetime('now', ? )`);
+        params.push(`-${olderThanDays} days`);
+    }
+    if (titleContains) {
+        where.push(`LOWER(title) LIKE ?`);
+        params.push(`%${titleContains}%`);
+    }
+    if (!where.length) return res.status(400).json({ error: 'No cleanup filter provided' });
+
+    db.run(`DELETE FROM trips WHERE ${where.join(' AND ')}`, params, function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ deleted: this.changes });
+    });
+});
+
+app.put('/api/admin/motd', authenticateToken, requireAdmin, (req, res) => {
+    const message = (req.body && req.body.message ? String(req.body.message) : '').trim();
+    db.run(
+        `INSERT INTO app_settings (key, value) VALUES ('motd', ?) 
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+        [message],
+        function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json({ message: 'Updated' });
+        }
+    );
+});
+
+app.delete('/api/admin/motd', authenticateToken, requireAdmin, (req, res) => {
+    db.run(`DELETE FROM app_settings WHERE key = 'motd'`, function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ message: 'Deleted' });
     });
 });
 
@@ -80,7 +308,7 @@ app.get('/api/trips', authenticateToken, (req, res) => {
 // Создать поездку
 app.post('/api/trips', authenticateToken, (req, res) => {
     const { title, start_date, end_date, budget } = req.body;
-    db.run(`INSERT INTO trips (user_id, title, start_date, end_date, budget) VALUES (?, ?, ?, ?, ?)`,
+    db.run(`INSERT INTO trips (user_id, title, start_date, end_date, budget, created_at) VALUES (?, ?, ?, ?, ?, datetime('now'))`,
         [req.user.id, title, start_date, end_date, budget || 0],
         function(err) {
             if (err) return res.status(500).json({ error: err.message });
