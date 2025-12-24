@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>План поездки</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <button class="secondary" style="width: auto; margin-bottom: 20px;" onclick="window.location.href='/dashboard.html'">← Назад</button>
+        
+        <div id="trip-header" class="card" style="border-left: 5px solid var(--primary);">
+            </div>
+
+        <div class="card">
+            <h3>📍 Добавить место или событие</h3>
+            <div class="flex" style="flex-wrap: wrap;">
+                <input type="number" id="item-day" placeholder="День (1, 2...)" style="flex: 1; min-width: 80px;">
+                <input type="time" id="item-time" style="flex: 1; min-width: 100px;">
+                <input type="number" id="item-cost" placeholder="Цена ₽" style="flex: 1; min-width: 100px;">
+            </div>
+            <input type="text" id="item-title" placeholder="Название (напр. Обед в центре)">
+            <input type="text" id="item-notes" placeholder="Заметка (адрес, номер рейса)">
+            <button onclick="addItem()">Добавить в план</button>
+        </div>
+
+        <div id="items-list" class="timeline"></div>
+    </div>
+
+    <script src="script.js"></script>
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const tripId = urlParams.get('id');
+        let tripData = null;
+
+        async function loadTripDetails() {
+            const res = await fetchAPI(`/trips/${tripId}`);
+            if (!res.ok) window.location.href = '/dashboard.html';
+            tripData = await res.json();
+            
+            const spent = tripData.items.reduce((sum, item) => sum + (item.cost || 0), 0);
+            
+            document.getElementById('trip-header').innerHTML = `
+                <div class="flex" style="align-items: flex-start;">
+                    <div>
+                        <h1>${tripData.title}</h1>
+                        <p class="badge">📅 ${tripData.start_date} — ${tripData.end_date}</p>
+                    </div>
+                    <div style="text-align: right;">
+                        <p>Бюджет: <b>${tripData.budget} ₽</b></p>
+                        <p style="color: ${spent > tripData.budget ? 'var(--danger)' : 'var(--success)'}">
+                            Потрачено: <b>${spent} ₽</b>
+                        </p>
+                    </div>
+                </div>
+                <hr style="border: 0; border-top: 1px solid #eee; margin: 15px 0;">
+                <a href="/api/trips/${tripId}/pdf?token=${getToken()}" target="_blank" style="text-decoration: none;">
+                    <button class="secondary">📄 Скачать PDF план</button>
+                </a>
+            `;
+
+            const list = document.getElementById('items-list');
+            list.innerHTML = '';
+
+            if (tripData.items.length === 0) {
+                list.innerHTML = '<p style="padding-left: 20px;">Маршрут пуст. Добавьте первое событие!</p>';
+                return;
+            }
+
+            // Рендер с новым дизайном (Timeline)
+            let currentDay = null;
+            
+            tripData.items.forEach(item => {
+                // Разделитель дней
+                if (item.day_number !== currentDay) {
+                    currentDay = item.day_number;
+                    list.innerHTML += `<h3 style="margin-left: 10px; margin-top: 30px; color: var(--primary);">День ${currentDay}</h3>`;
+                }
+
+                list.innerHTML += `
+                    <div class="card timeline-item">
+                        <div class="timeline-dot"></div>
+                        <div class="flex" style="align-items: flex-start;">
+                            <div style="flex-grow: 1;">
+                                <div style="font-weight: 600; font-size: 1.1rem; color: #333;">
+                                    ${item.time} — ${item.title}
+                                </div>
+                                ${item.notes ? `<div style="color: #666; font-size: 0.95rem; margin-top: 5px;">${item.notes}</div>` : ''}
+                            </div>
+                            <div style="text-align: right; min-width: 80px;">
+                                <div style="font-weight: bold;">${item.cost || 0} ₽</div>
+                                <button class="danger" style="width: auto; padding: 5px 10px; margin-top: 5px; font-size: 0.8rem;" onclick="deleteItem(${item.id})">Удалить</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        async function addItem() {
+            const body = {
+                day_number: document.getElementById('item-day').value,
+                time: document.getElementById('item-time').value,
+                cost: document.getElementById('item-cost').value,
+                title: document.getElementById('item-title').value,
+                notes: document.getElementById('item-notes').value
+            };
+            if(!body.day_number || !body.title) return alert("Укажите день и название");
+            
+            await fetchAPI(`/trips/${tripId}/items`, 'POST', body);
+            loadTripDetails();
+            
+            // Очистка
+            document.getElementById('item-title').value = '';
+            document.getElementById('item-notes').value = '';
+            document.getElementById('item-cost').value = '';
+        }
+
+        async function deleteItem(itemId) {
+            if(confirm('Удалить этот пункт?')) {
+                await fetchAPI(`/items/${itemId}`, 'DELETE');
+                loadTripDetails();
+            }
+        }
+
+        loadTripDetails();
+    </script>
+</body>
+</html>

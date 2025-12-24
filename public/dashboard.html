@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Мои поездки</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header class="flex" style="margin-bottom: 30px;">
+            <h2>🗺️ Мои путешествия</h2>
+            <button class="secondary" style="width: auto;" onclick="logout()">Выйти</button>
+        </header>
+
+        <div class="card">
+            <h3>Создать новую поездку</h3>
+            <div class="flex" style="align-items: flex-start; flex-wrap: wrap;">
+                <div style="flex: 2; min-width: 200px;">
+                    <input type="text" id="trip-title" placeholder="Куда едем? (напр. Рим)">
+                </div>
+                <div style="flex: 1; min-width: 140px;">
+                    <input type="date" id="trip-start">
+                </div>
+                <div style="flex: 1; min-width: 140px;">
+                    <input type="date" id="trip-end">
+                </div>
+                <div style="flex: 1; min-width: 120px;">
+                    <input type="number" id="trip-budget" placeholder="Бюджет ₽">
+                </div>
+            </div>
+            <button onclick="createTrip()" style="margin-top: 10px;">✨ Создать поездку</button>
+        </div>
+
+        <div id="trips-list" class="trips-grid"></div>
+    </div>
+
+    <script src="script.js"></script>
+    <script>
+        // Логика та же, меняем только HTML внутри рендера
+        async function loadTrips() {
+            const res = await fetchAPI('/trips');
+            const trips = await res.json();
+            const container = document.getElementById('trips-list');
+            
+            if (trips.length === 0) {
+                container.innerHTML = '<p style="grid-column: 1/-1; text-align: center;">У вас пока нет поездок. Создайте первую!</p>';
+                return;
+            }
+
+            container.innerHTML = trips.map(t => `
+                <div class="trip-card">
+                    <div>
+                        <h3>${t.title}</h3>
+                        <p class="badge">📅 ${t.start_date} — ${t.end_date}</p>
+                        <p style="font-size: 0.9rem">Бюджет: <b>${t.budget} ₽</b></p>
+                    </div>
+                    <div class="flex" style="margin-top: 15px;">
+                        <button onclick="window.location.href='/trip.html?id=${t.id}'">Открыть</button>
+                        <button class="danger" style="width: auto;" onclick="deleteTrip(${t.id})">🗑️</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function createTrip() {
+            const title = document.getElementById('trip-title').value;
+            const start_date = document.getElementById('trip-start').value;
+            const end_date = document.getElementById('trip-end').value;
+            const budget = document.getElementById('trip-budget').value;
+            
+            if(!title || !start_date) return alert("Заполните обязательные поля");
+
+            await fetchAPI('/trips', 'POST', { title, start_date, end_date, budget });
+            loadTrips();
+            // Очистка полей
+            document.getElementById('trip-title').value = '';
+        }
+
+        async function deleteTrip(id) {
+            if(confirm('Точно удалить эту поездку?')) {
+                await fetchAPI(`/trips/${id}`, 'DELETE');
+                loadTrips();
+            }
+        }
+        loadTrips();
+    </script>
+</body>
+</html>

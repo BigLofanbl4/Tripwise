@@ -1,0 +1,178 @@
+/* --- 1. Базовые настройки и шрифты --- */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+:root {
+    --primary: #4f46e5;       /* Индиго */
+    --primary-hover: #4338ca;
+    --bg-color: #f3f4f6;      /* Светло-серый фон */
+    --card-bg: #ffffff;
+    --text-main: #111827;
+    --text-secondary: #6b7280;
+    --danger: #ef4444;
+    --success: #10b981;
+    --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    --radius: 12px;
+}
+
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-main);
+    margin: 0;
+    padding: 20px;
+    line-height: 1.5;
+}
+
+/* Центрирование контейнера */
+.container {
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+/* --- 2. Карточки --- */
+.card {
+    background: var(--card-bg);
+    padding: 24px;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    margin-bottom: 24px;
+    transition: transform 0.2s ease;
+}
+
+/* --- 3. Типографика --- */
+h1, h2, h3 { margin-top: 0; color: var(--text-main); font-weight: 700; }
+h1 { font-size: 2rem; }
+h2 { font-size: 1.5rem; }
+h3 { font-size: 1.25rem; margin-bottom: 1rem; }
+p { color: var(--text-secondary); margin-bottom: 1rem; }
+small { color: #9ca3af; font-size: 0.85rem; }
+
+/* --- 4. Формы и Кнопки --- */
+input, select {
+    width: 100%;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    font-size: 1rem;
+    background: #f9fafb;
+    transition: border-color 0.2s;
+    box-sizing: border-box; /* Важно! */
+}
+
+input:focus {
+    outline: none;
+    border-color: var(--primary);
+    background: #fff;
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+}
+
+button {
+    background: var(--primary);
+    color: white;
+    border: none;
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    width: 100%;
+    transition: background 0.2s, transform 0.1s;
+}
+
+button:hover { background: var(--primary-hover); }
+button:active { transform: scale(0.98); }
+
+button.secondary {
+    background: #e5e7eb;
+    color: #374151;
+}
+button.secondary:hover { background: #d1d5db; }
+
+button.danger {
+    background: #fee2e2;
+    color: #b91c1c;
+}
+button.danger:hover { background: #fecaca; }
+
+/* Группы кнопок и полей */
+.flex {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 15px;
+}
+.flex-col { display: flex; flexDirection: column; }
+
+/* --- 5. Специальные стили --- */
+
+/* Экран входа */
+.auth-container {
+    max-width: 400px;
+    margin: 60px auto;
+    text-align: center;
+}
+
+/* Список поездок (Сетка) */
+.trips-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 20px;
+}
+
+.trip-card {
+    background: white;
+    border-radius: var(--radius);
+    padding: 20px;
+    box-shadow: var(--shadow);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    height: 100%;
+    border-left: 5px solid var(--primary);
+}
+
+.trip-card:hover { transform: translateY(-3px); }
+
+/* Таймлайн (Маршрут) */
+.timeline {
+    position: relative;
+    padding-left: 30px;
+}
+.timeline::before {
+    content: '';
+    position: absolute;
+    left: 10px;
+    top: 10px;
+    bottom: 10px;
+    width: 2px;
+    background: #e5e7eb;
+}
+
+.timeline-item {
+    position: relative;
+    margin-bottom: 25px;
+}
+
+.timeline-dot {
+    position: absolute;
+    left: -30px;
+    top: 5px;
+    width: 12px;
+    height: 12px;
+    background: var(--primary);
+    border-radius: 50%;
+    border: 4px solid white;
+    box-shadow: 0 0 0 2px #e5e7eb;
+}
+
+.badge {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    background: #e0e7ff;
+    color: var(--primary);
+    margin-bottom: 8px;
+}
