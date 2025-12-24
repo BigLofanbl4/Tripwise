@@ -30,6 +30,25 @@ db.serialize(() => {
         time TEXT,
         notes TEXT,
         cost REAL,
+        category TEXT DEFAULT 'Другое',
+        FOREIGN KEY(trip_id) REFERENCES trips(id) ON DELETE CASCADE
+    )`);
+
+    db.all(`PRAGMA table_info(trip_items)`, (err, columns) => {
+        if (err || !Array.isArray(columns)) return;
+        const hasCategory = columns.some(c => c && c.name === 'category');
+        if (hasCategory) return;
+        db.run(`ALTER TABLE trip_items ADD COLUMN category TEXT DEFAULT 'Другое'`, () => {
+            db.run(`UPDATE trip_items SET category = 'Другое' WHERE category IS NULL`);
+        });
+    });
+
+    // Таблица чек-листа вещей
+    db.run(`CREATE TABLE IF NOT EXISTS packing_items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        trip_id INTEGER,
+        title TEXT,
+        is_done INTEGER DEFAULT 0,
         FOREIGN KEY(trip_id) REFERENCES trips(id) ON DELETE CASCADE
     )`);
 });

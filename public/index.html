@@ -56,7 +56,14 @@
                 const data = await res.json();
                 saveToken(data.token);
                 window.location.href = '/dashboard.html';
-            } else alert('Ошибка входа');
+            } else {
+                let msg = 'Ошибка входа';
+                try {
+                    const err = await res.json();
+                    if (err && err.error) msg = err.error;
+                } catch(e) {}
+                alert(msg);
+            }
         }
 
         async function register() {
@@ -68,7 +75,18 @@
                 const data = await res.json();
                 saveToken(data.token);
                 window.location.href = '/dashboard.html';
-            } else alert('Ошибка регистрации');
+            } else {
+                try {
+                    const err = await res.json();
+                    if (err && err.error) {
+                        alert(err.error);
+                    } else {
+                        alert('Ошибка регистрации');
+                    }
+                } catch(e) {
+                    alert('Ошибка регистрации');
+                }
+            }
         }
     </script>
 </body>

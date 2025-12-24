@@ -12,6 +12,16 @@
         <div id="trip-header" class="card" style="border-left: 5px solid var(--primary);">
             </div>
 
+        <div class="card" style="padding: 0; overflow: hidden;">
+            <div class="flex" style="gap: 0;">
+                <button id="tab-route" class="secondary" style="border-radius: 0; width: 50%;" onclick="showTab('route')">Маршрут</button>
+                <button id="tab-packing" class="secondary" style="border-radius: 0; width: 50%;" onclick="showTab('packing')">Что взять с собой</button>
+            </div>
+        </div>
+
+        <div id="tab-content-route" class="tab-content">
+            <div id="stats-card" class="card" style="display:none; border-left: 5px solid var(--primary);"></div>
+
         <div class="card">
             <h3>📍 Добавить место или событие</h3>
             <div class="flex" style="flex-wrap: wrap;">
@@ -19,12 +29,31 @@
                 <input type="time" id="item-time" style="flex: 1; min-width: 100px;">
                 <input type="number" id="item-cost" placeholder="Цена ₽" style="flex: 1; min-width: 100px;">
             </div>
+            <select id="item-category" style="width: 100%; margin-top: 10px;">
+                <option value="Отель">Отель</option>
+                <option value="Транспорт">Транспорт</option>
+                <option value="Еда">Еда</option>
+                <option value="Развлечения">Развлечения</option>
+                <option value="Другое" selected>Другое</option>
+            </select>
             <input type="text" id="item-title" placeholder="Название (напр. Обед в центре)">
             <input type="text" id="item-notes" placeholder="Заметка (адрес, номер рейса)">
             <button onclick="addItem()">Добавить в план</button>
         </div>
 
         <div id="items-list" class="timeline"></div>
+        </div>
+
+        <div id="tab-content-packing" class="tab-content" style="display:none;">
+            <div class="card">
+                <h3>🧳 Что взять с собой</h3>
+                <div class="flex" style="flex-wrap: wrap;">
+                    <input type="text" id="packing-title" placeholder="Напр. Паспорт" style="flex: 1; min-width: 220px;">
+                    <button style="width:auto;" onclick="addPackingItem()">Добавить</button>
+                </div>
+            </div>
+            <div id="packing-list" class="card"></div>
+        </div>
     </div>
 
     <script src="script.js"></script>
@@ -33,13 +62,102 @@
         const tripId = urlParams.get('id');
         let tripData = null;
 
+        function showTab(tab) {
+            const route = document.getElementById('tab-content-route');
+            const packing = document.getElementById('tab-content-packing');
+
+            if (tab === 'packing') {
+                route.style.display = 'none';
+                packing.style.display = 'block';
+                loadPacking();
+            } else {
+                packing.style.display = 'none';
+                route.style.display = 'block';
+                loadStats();
+            }
+        }
+
+        async function loadStats() {
+            const statsCard = document.getElementById('stats-card');
+            const res = await fetchAPI(`/trips/${tripId}/stats`);
+            if (!res.ok) {
+                statsCard.style.display = 'none';
+                return;
+            }
+            const stats = await res.json();
+            const food = (stats.categories || []).find(c => c.category === 'Еда');
+            if (!food || !stats.budget) {
+                statsCard.style.display = 'none';
+                return;
+            }
+            statsCard.style.display = 'block';
+            statsCard.innerHTML = `
+                <div class="flex" style="align-items:flex-start;">
+                    <div>
+                        <h3 style="margin:0;">📊 Аналитика</h3>
+                        <p style="margin:5px 0 0 0;">Вы потратили <b>${food.percentage}%</b> бюджета на <b>еду</b>.</p>
+                    </div>
+                    <div style="text-align:right;">
+                        <div>Потрачено: <b>${stats.total_spent} ₽</b></div>
+                        <div>Осталось: <b>${stats.remaining} ₽</b></div>
+                    </div>
+                </div>
+            `;
+        }
+
+        async function loadPacking() {
+            const container = document.getElementById('packing-list');
+            const res = await fetchAPI(`/trips/${tripId}/packing`);
+            if (!res.ok) {
+                container.innerHTML = '<p>Не удалось загрузить список.</p>';
+                return;
+            }
+            const items = await res.json();
+            if (!items.length) {
+                container.innerHTML = '<p>Список пуст. Добавьте первую вещь!</p>';
+                return;
+            }
+            container.innerHTML = items.map(i => `
+                <div class="packing-row">
+                    <label class="packing-label">
+                        <input class="packing-checkbox" type="checkbox" ${i.is_done ? 'checked' : ''} onchange="togglePacking(${i.id}, this.checked)">
+                        <span class="packing-title ${i.is_done ? 'is-done' : ''}">${i.title}</span>
+                    </label>
+                    <button class="danger packing-delete" onclick="deletePacking(${i.id})">Удалить</button>
+                </div>
+            `).join('');
+        }
+
+        async function addPackingItem() {
+            const titleEl = document.getElementById('packing-title');
+            const title = titleEl.value.trim();
+            if (!title) return alert('Введите название');
+            const res = await fetchAPI(`/trips/${tripId}/packing`, 'POST', { title });
+            if (!res.ok) return alert('Не удалось добавить');
+            titleEl.value = '';
+            loadPacking();
+        }
+
+        async function togglePacking(id, isDone) {
+            const res = await fetchAPI(`/packing/${id}`, 'PUT', { is_done: isDone });
+            if (!res.ok) return alert('Не удалось обновить');
+            loadPacking();
+        }
+
+        async function deletePacking(id) {
+            if (!confirm('Удалить эту вещь?')) return;
+            const res = await fetchAPI(`/packing/${id}`, 'DELETE');
+            if (!res.ok) return alert('Не удалось удалить');
+            loadPacking();
+        }
+
         async function loadTripDetails() {
             const res = await fetchAPI(`/trips/${tripId}`);
             if (!res.ok) window.location.href = '/dashboard.html';
             tripData = await res.json();
-            
+
             const spent = tripData.items.reduce((sum, item) => sum + (item.cost || 0), 0);
-            
+
             document.getElementById('trip-header').innerHTML = `
                 <div class="flex" style="align-items: flex-start;">
                     <div>
@@ -67,15 +185,14 @@
                 return;
             }
 
-            // Рендер с новым дизайном (Timeline)
             let currentDay = null;
-            
             tripData.items.forEach(item => {
-                // Разделитель дней
                 if (item.day_number !== currentDay) {
                     currentDay = item.day_number;
                     list.innerHTML += `<h3 style="margin-left: 10px; margin-top: 30px; color: var(--primary);">День ${currentDay}</h3>`;
                 }
+
+                const cat = item.category ? `<span class="badge" style="margin-left:8px; font-size:0.75rem;">${item.category}</span>` : '';
 
                 list.innerHTML += `
                     <div class="card timeline-item">
@@ -83,7 +200,7 @@
                         <div class="flex" style="align-items: flex-start;">
                             <div style="flex-grow: 1;">
                                 <div style="font-weight: 600; font-size: 1.1rem; color: #333;">
-                                    ${item.time} — ${item.title}
+                                    ${item.time} — ${item.title} ${cat}
                                 </div>
                                 ${item.notes ? `<div style="color: #666; font-size: 0.95rem; margin-top: 5px;">${item.notes}</div>` : ''}
                             </div>
@@ -103,27 +220,27 @@
                 time: document.getElementById('item-time').value,
                 cost: document.getElementById('item-cost').value,
                 title: document.getElementById('item-title').value,
-                notes: document.getElementById('item-notes').value
+                notes: document.getElementById('item-notes').value,
+                category: document.getElementById('item-category').value
             };
-            if(!body.day_number || !body.title) return alert("Укажите день и название");
-            
+            if (!body.day_number || !body.title) return alert('Укажите день и название');
+
             await fetchAPI(`/trips/${tripId}/items`, 'POST', body);
             loadTripDetails();
-            
-            // Очистка
+
             document.getElementById('item-title').value = '';
             document.getElementById('item-notes').value = '';
             document.getElementById('item-cost').value = '';
         }
 
         async function deleteItem(itemId) {
-            if(confirm('Удалить этот пункт?')) {
-                await fetchAPI(`/items/${itemId}`, 'DELETE');
-                loadTripDetails();
-            }
+            if (!confirm('Удалить этот пункт?')) return;
+            await fetchAPI(`/items/${itemId}`, 'DELETE');
+            loadTripDetails();
         }
 
         loadTripDetails();
+        showTab('route');
     </script>
 </body>
 </html>
